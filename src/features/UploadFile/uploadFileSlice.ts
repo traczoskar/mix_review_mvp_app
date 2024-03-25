@@ -4,7 +4,7 @@ export const uploadFileSlice = createSlice({
   name: "uploadFile",
   initialState: {
     fileUploaded: null as string | null,
-    isFileUploaded: false,
+    isFileUploaded: false as boolean,
   },
   reducers: {
     setFileUploaded: (state, action: PayloadAction<string | null>) => {
