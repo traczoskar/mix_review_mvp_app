@@ -8,30 +8,43 @@ import { useSelector, useDispatch } from "react-redux";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
 import {
+  Button,
   ControlsContainer,
   CurrentTimeWindow,
+  FileInfoWindow,
   FormContainer,
   PlayerContainer,
   PlayerSection,
 } from "./styled";
 
 export const WaveformGenerator = () => {
+  //States
+  const [fileInfo, setFileInfo] = useState({
+    title: "",
+    duration: 0,
+    sampleRate: 0,
+  });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState("00.00.000");
   const fileUploaded = useSelector(selectFileUploaded);
   const isFileUploaded = useSelector(selectIsFileUploaded);
+  //Refs
+  const regionsRef = useRef<RegionsPlugin | null>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
-  const [currentTime, setCurrentTime] = useState("0");
+  //Dispatch
   const dispatch = useDispatch();
 
   // Function (useEffect) to create the waveform
   useEffect(() => {
     if (isFileUploaded && fileUploaded) {
+      const regionsPlugin = RegionsPlugin.create();
       wavesurferRef.current = WaveSurfer.create({
         container: waveformRef.current!,
         waveColor: "#dcdcdc",
         progressColor: "#e06c00",
         url: fileUploaded,
+        backend: "MediaElement",
         dragToSeek: true,
         width: "50vw",
         height: 150,
@@ -41,16 +54,10 @@ export const WaveformGenerator = () => {
         barRadius: 10,
         barWidth: 1.75,
         normalize: true,
+        plugins: [regionsPlugin],
       });
-      const wsRegions = wavesurferRef.current.registerPlugin(
-        RegionsPlugin.create()
-      );
-      // Markers (zero-length regions)
-      wsRegions.addRegion({
-        start: 100,
-        content: "Marker",
-        color: "red",
-      });
+      regionsRef.current = regionsPlugin;
+
       return () => {
         if (wavesurferRef.current) {
           wavesurferRef.current.destroy();
@@ -86,16 +93,13 @@ export const WaveformGenerator = () => {
     };
   }, []);
 
-  // Initialize the Regions plugin
-
   const handleStop = () => {
     if (wavesurferRef.current) {
       wavesurferRef.current.stop();
-      setCurrentTime("0");
+      setCurrentTime("00.00.000");
       setIsPlaying(false);
     }
   };
-
   const handlePlayPause = () => {
     if (wavesurferRef.current) {
       const isPlaying = wavesurferRef.current.isPlaying();
@@ -107,7 +111,6 @@ export const WaveformGenerator = () => {
       setIsPlaying(!isPlaying);
     }
   };
-
   const handleSkipForward = () => {
     if (wavesurferRef.current) {
       wavesurferRef.current.skip(2);
@@ -124,7 +127,6 @@ export const WaveformGenerator = () => {
       console.log("Current time:", currentTime);
     }
   };
-
   const formatTime = (timeInSeconds: number): string => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
@@ -133,7 +135,6 @@ export const WaveformGenerator = () => {
       .toString()
       .padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
   };
-
   const updatePlaybackTime = () => {
     if (isPlaying && wavesurferRef.current) {
       const currentTime = wavesurferRef.current.getCurrentTime();
@@ -141,8 +142,7 @@ export const WaveformGenerator = () => {
       setCurrentTime(formattedCurrentTime);
     }
   };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fileInput = e.currentTarget.file as HTMLInputElement;
     const file = fileInput.files ? fileInput.files[0] : null;
@@ -150,6 +150,52 @@ export const WaveformGenerator = () => {
       const fileUrl = URL.createObjectURL(file);
       dispatch(setFileUploaded(fileUrl));
       console.log("File uploaded and stored:", fileUrl);
+
+      const audioContext = new AudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      audioContext.decodeAudioData(arrayBuffer, (audioBuffer) => {
+        const sampleRate = audioBuffer.sampleRate;
+        const duration = audioBuffer.duration;
+        setFileInfo({
+          title: file.name,
+          duration: duration,
+          sampleRate: sampleRate,
+        });
+      });
+      console.log(fileInfo);
+    }
+  };
+
+  function formatMetadata(duration: number, sampleRate: number) {
+    // Formatowanie czasu trwania
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60)
+      .toString()
+      .padStart(2, "0");
+    const formattedDuration = `${minutes}:${seconds}`;
+
+    // Formatowanie częstotliwości próbkowania
+    const formattedSampleRate = (sampleRate / 1000).toFixed(1) + " kHz";
+
+    return { formattedDuration, formattedSampleRate };
+  }
+
+  const { formattedDuration, formattedSampleRate } = formatMetadata(
+    fileInfo.duration,
+    fileInfo.sampleRate
+  );
+  console.log(
+    `Duration: ${formattedDuration}, Sample Rate: ${formattedSampleRate}`
+  );
+
+  const handleAddMarker = () => {
+    if (wavesurferRef.current && regionsRef.current) {
+      const currentTime = wavesurferRef.current.getCurrentTime();
+      regionsRef.current.addRegion({
+        start: currentTime,
+        end: currentTime + 1, // you can adjust this value as needed
+        color: "rgba(0, 0, 255, 0.1)",
+      });
     }
   };
 
@@ -157,17 +203,22 @@ export const WaveformGenerator = () => {
     <PlayerSection>
       <FormContainer onSubmit={handleSubmit}>
         <input type="file" name="file" />
-        <button type="submit">Upload</button>
+        <Button type="submit">Upload</Button>
       </FormContainer>
       <PlayerContainer ref={waveformRef} />
-      <CurrentTimeWindow>{currentTime}</CurrentTimeWindow>
+      <CurrentTimeWindow>Time: {currentTime}</CurrentTimeWindow>
+      <FileInfoWindow>
+        <p>Title: {fileInfo.title}</p>
+        <p>Duration: {fileInfo.duration}</p>
+        <p>Sample rate: {fileInfo.sampleRate}</p>
+      </FileInfoWindow>
       <ControlsContainer className="waveform-controls">
-        <button onClick={handlePlayPause}>Play | Pause</button>
-        <button onClick={handleStop}>Stop</button>
-        <button onClick={handleSkipForward}>Forward</button>
-        <button onClick={handleSkipBackward}>Backward</button>
-        <button onClick={handleGetCurrentTime}>GetCurrentTime</button>
-        {/* <button onClick={handleAddMarker}>Add Marker</button> */}
+        <Button onClick={handlePlayPause}>Play | Pause</Button>
+        <Button onClick={handleStop}>Stop</Button>
+        <Button onClick={handleSkipForward}>Forward</Button>
+        <Button onClick={handleSkipBackward}>Backward</Button>
+        <Button onClick={handleGetCurrentTime}>GetCurrentTime</Button>
+        <Button onClick={handleAddMarker}>Add Marker</Button>
       </ControlsContainer>
     </PlayerSection>
   );
