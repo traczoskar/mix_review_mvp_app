@@ -1,11 +1,12 @@
 import { WaveformGenerator } from "../../features/WaveformGenerator";
+import { MainContainer } from "./styled";
 
 const HomePage: React.FC = () => {
   return (
-    <div>
-      <h1>Welcome to the HomePage!</h1>
+    <MainContainer>
+      <h1>Mix Review Software!</h1>
       <WaveformGenerator />
-    </div>
+    </MainContainer>
   );
 };
 
