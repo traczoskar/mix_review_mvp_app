@@ -30,6 +30,9 @@ export const FormContainer = styled.form`
 `;
 
 export const FileInfoWindow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
   margin: 30px 0;
   font-size: 16px;
   color: #dddddd;
