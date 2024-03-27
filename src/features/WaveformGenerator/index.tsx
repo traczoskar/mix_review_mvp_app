@@ -19,10 +19,19 @@ import {
 
 export const WaveformGenerator = () => {
   //States
-  const [fileInfo, setFileInfo] = useState({
+  interface FileInfo {
+    title: string;
+    duration: number | string;
+    sampleRate: number | string;
+    bitrate?: string;
+    fileSize: number | string;
+  }
+  const [fileInfo, setFileInfo] = useState<FileInfo>({
     title: "",
     duration: 0,
     sampleRate: 0,
+    bitrate: "",
+    fileSize: 0,
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState("00.00.000");
@@ -156,37 +165,39 @@ export const WaveformGenerator = () => {
       audioContext.decodeAudioData(arrayBuffer, (audioBuffer) => {
         const sampleRate = audioBuffer.sampleRate;
         const duration = audioBuffer.duration;
+        // Oblicz bitrate dla plików MP3
+        let bitrate = 0;
+        if (file.type === "audio/mpeg") {
+          bitrate = (file.size * 8) / duration / 1000; // rozmiar w bitach / długość w sekundach / 1000 dla kbps
+        }
+        const fileSizeMB = (file.size / 1024 / 1024).toFixed(2) + " MB"; // konwersja na MB
         setFileInfo({
           title: file.name,
-          duration: duration,
-          sampleRate: sampleRate,
+          duration: formatDuration(duration),
+          sampleRate: formatSampleRate(sampleRate),
+          bitrate: bitrate.toFixed(0) + " kbps",
+          fileSize: fileSizeMB,
         });
       });
       console.log(fileInfo);
     }
   };
 
-  function formatMetadata(duration: number, sampleRate: number) {
-    // Formatowanie czasu trwania
+  // Function to format sample rate of file
+  const formatSampleRate = (sampleRate: number): string => {
+    const formattedSampleRate = (sampleRate / 1000).toFixed(1) + " kHz";
+    return formattedSampleRate;
+  };
+
+  // Function to format duration of file
+  const formatDuration = (duration: number) => {
     const minutes = Math.floor(duration / 60);
     const seconds = Math.floor(duration % 60)
       .toString()
       .padStart(2, "0");
     const formattedDuration = `${minutes}:${seconds}`;
-
-    // Formatowanie częstotliwości próbkowania
-    const formattedSampleRate = (sampleRate / 1000).toFixed(1) + " kHz";
-
-    return { formattedDuration, formattedSampleRate };
-  }
-
-  const { formattedDuration, formattedSampleRate } = formatMetadata(
-    fileInfo.duration,
-    fileInfo.sampleRate
-  );
-  console.log(
-    `Duration: ${formattedDuration}, Sample Rate: ${formattedSampleRate}`
-  );
+    return formattedDuration;
+  };
 
   const handleAddMarker = () => {
     if (wavesurferRef.current && regionsRef.current) {
@@ -211,6 +222,8 @@ export const WaveformGenerator = () => {
         <p>Title: {fileInfo.title}</p>
         <p>Duration: {fileInfo.duration}</p>
         <p>Sample rate: {fileInfo.sampleRate}</p>
+        <p>Bitrate: {fileInfo.bitrate}</p>
+        <p>File size: {fileInfo.fileSize}</p>
       </FileInfoWindow>
       <ControlsContainer className="waveform-controls">
         <Button onClick={handlePlayPause}>Play | Pause</Button>
